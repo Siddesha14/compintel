@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ comparison, totalEntries: salaries.length });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     console.error("POST /api/compare error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
