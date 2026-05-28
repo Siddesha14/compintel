@@ -4,7 +4,7 @@ import { salarySubmitSchema } from "@/lib/validation";
 import { z } from "zod";
 import { mapLevelToOrder } from "@/lib/levelMapper";
 import { normalizeCompanyName, slugify } from "@/lib/normalizers";
-
+export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
