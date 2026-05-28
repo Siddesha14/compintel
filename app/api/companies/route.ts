@@ -11,12 +11,12 @@ export async function GET(request: NextRequest) {
     });
 
     const companiesWithStats = await Promise.all(
-      companies.map(async (company) => {
+      companies.map(async (company: any) => {
         const avgStats = await prisma.salaryEntry.aggregate({
           where: { companyId: company.id },
           _avg: { totalComp: true, baseSalary: true, bonus: true, stockValue: true },
         });
-
+    
         return {
           id: company.id,
           name: company.name,

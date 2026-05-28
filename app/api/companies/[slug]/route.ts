@@ -45,7 +45,7 @@ export async function GET(
         minTotalComp: aggregateStats._min.totalComp || 0,
         maxTotalComp: aggregateStats._max.totalComp || 0,
       },
-      groupedByLevel: groupedByLevel.map((item) => ({
+      groupedByLevel: groupedByLevel.map((item: any) => ({
         level: item.level,
         levelOrder: item.levelOrder,
         count: item._count,
