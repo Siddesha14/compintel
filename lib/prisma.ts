@@ -1,8 +1,9 @@
-import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const { PrismaClient } = require("@prisma/client");
+
+const globalForPrisma = globalThis as unknown as { prisma: any };
 
 function createPrismaClient() {
   const pool = new Pool({
@@ -10,7 +11,7 @@ function createPrismaClient() {
     ssl: { rejectUnauthorized: false },
   });
   const adapter = new PrismaPg(pool);
-  return new PrismaClient({ adapter } as any);
+  return new PrismaClient({ adapter });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
