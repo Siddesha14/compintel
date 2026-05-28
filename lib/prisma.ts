@@ -1,17 +1,13 @@
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
-
-const { PrismaClient } = require("@prisma/client");
+import { PrismaClient } from "@prisma/client/edge";
+import { neon } from "@neondatabase/serverless";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 const globalForPrisma = globalThis as unknown as { prisma: any };
 
 function createPrismaClient() {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  });
-  const adapter = new PrismaPg(pool);
-  return new PrismaClient({ adapter });
+  const neonClient = neon(process.env.DATABASE_URL!);
+  const adapter = new PrismaNeon(neonClient);
+  return new PrismaClient({ adapter } as any);
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
