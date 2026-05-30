@@ -1,43 +1,60 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { salarySubmitSchema } from "@/lib/validation";
+import { salarySubmitSchema, salaryFilterSchema } from "@/lib/validation";
 import { z } from "zod";
 import { mapLevelToOrder } from "@/lib/levelMapper";
 import { normalizeCompanyName, slugify } from "@/lib/normalizers";
-export const dynamic = 'force-dynamic';
+
+export const dynamic = "force-dynamic";
+
+function apiSuccess(data: any, meta?: any, status = 200) {
+  return NextResponse.json({ success: true, data, ...(meta && { meta }) }, { status });
+}
+
+function apiError(message: string, status = 500, details?: any) {
+  return NextResponse.json({ success: false, error: message, ...(details && { details }) }, { status });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const roleCategory = searchParams.get("roleCategory");
-    const companySlug = searchParams.get("company");
-    const city = searchParams.get("city");
-    const minLevel = searchParams.get("minLevel");
-    const maxLevel = searchParams.get("maxLevel");
-    const minComp = searchParams.get("minComp");
-    const maxComp = searchParams.get("maxComp");
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "20");
+    const rawParams = Object.fromEntries(searchParams.entries());
+
+    const parsed = salaryFilterSchema.safeParse(rawParams);
+    if (!parsed.success) {
+      return apiError("Invalid filter parameters", 400, parsed.error.issues);
+    }
+
+    const { roleCategory, company, city, minLevel, maxLevel, minComp, maxComp, page, limit } = parsed.data;
     const skip = (page - 1) * limit;
 
     const where: any = {};
     if (roleCategory) where.roleCategory = roleCategory;
-    if (companySlug) where.company = { slug: companySlug };
-    if (city) where.city = city;
+    if (company) {
+      where.company = {
+        OR: [
+          { slug: { contains: company.toLowerCase().replace(/\s+/g, "-"), mode: "insensitive" } },
+          { name: { contains: company, mode: "insensitive" } },
+          { normalizedName: { contains: company.toLowerCase().replace(/[^a-z0-9]/g, ""), mode: "insensitive" } },
+        ]
+      };
+    }
+    if (city) where.city = { contains: city, mode: "insensitive" };
     if (minLevel || maxLevel) {
       where.levelOrder = {};
-      if (minLevel) where.levelOrder.gte = parseInt(minLevel);
-      if (maxLevel) where.levelOrder.lte = parseInt(maxLevel);
+      if (minLevel) where.levelOrder.gte = minLevel;
+      if (maxLevel) where.levelOrder.lte = maxLevel;
     }
     if (minComp || maxComp) {
       where.totalComp = {};
-      if (minComp) where.totalComp.gte = parseInt(minComp);
-      if (maxComp) where.totalComp.lte = parseInt(maxComp);
+      if (minComp) where.totalComp.gte = minComp;
+      if (maxComp) where.totalComp.lte = maxComp;
     }
 
     const [data, total] = await Promise.all([
       prisma.salaryEntry.findMany({
         where,
-        include: { company: true },
+        include: { company: { select: { id: true, name: true, slug: true, industry: true, companyType: true } } },
         orderBy: { totalComp: "desc" },
         skip,
         take: limit,
@@ -45,24 +62,37 @@ export async function GET(request: NextRequest) {
       prisma.salaryEntry.count({ where }),
     ]);
 
-    return NextResponse.json({ data, total, page });
+    return apiSuccess(data, {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      hasNextPage: skip + limit < total,
+      hasPrevPage: page > 1,
+    });
   } catch (error) {
     console.error("GET /api/salaries error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return apiError("Failed to fetch salaries");
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const validated = salarySubmitSchema.parse(body);
+    const body = await request.json().catch(() => null);
+    if (!body) return apiError("Invalid JSON body", 400);
 
-    // Normalize and upsert company
+    const parsed = salarySubmitSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError("Validation failed", 400, parsed.error.issues);
+    }
+
+    const validated = parsed.data;
     const normalized = normalizeCompanyName(validated.companyName);
     const slug = slugify(validated.companyName);
 
+    // Upsert company with normalization
     const company = await prisma.company.upsert({
-      where: { slug },
+      where: { normalizedName: normalized },
       update: {},
       create: {
         name: validated.companyName,
@@ -71,7 +101,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Always compute totalComp server-side
+    // Always compute server-side — never trust client
     const totalComp = validated.baseSalary + validated.bonus + validated.stockValue;
     const levelOrder = mapLevelToOrder(validated.level);
 
@@ -92,15 +122,15 @@ export async function POST(request: NextRequest) {
         dataYear: validated.dataYear,
         isAnonymous: true,
       },
+      include: { company: { select: { name: true, slug: true } } },
     });
 
-    return NextResponse.json({ data: entry }, { status: 201 });
+    return apiSuccess(entry, undefined, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues }, { status: 400 });
+      return apiError("Validation failed", 400, error.issues);
     }
     console.error("POST /api/salaries error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return apiError("Failed to submit salary");
   }
-}
-"// force deploy" 
+}"// force deploy" 
