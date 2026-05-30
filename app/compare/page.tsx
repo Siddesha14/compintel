@@ -54,8 +54,8 @@ export default function ComparePage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ companies: selected, roleCategory: role, levelOrder }),
     });
-    const data = await res.json();
-    setResult(data);
+    const json = await res.json();
+    setResult(json);
     setLoading(false);
   };
 
