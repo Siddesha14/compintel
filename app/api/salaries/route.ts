@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { salarySubmitSchema, salaryFilterSchema } from "@/lib/validation";
 import { z } from "zod";
 import { mapLevelToOrder } from "@/lib/levelMapper";
-import { normalizeCompanyName, slugify } from "@/lib/normalizers";
+import { normalizeCompanyName, slugify, normalizeCity } from "@/lib/normalizers";
+
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,10 @@ export async function GET(request: NextRequest) {
         ]
       };
     }
-    if (city) where.city = { contains: city, mode: "insensitive" };
+    if (city) {
+      const normalizedCity = normalizeCity(city);
+      where.city = { contains: normalizedCity, mode: "insensitive" };
+    }
     if (minLevel || maxLevel) {
       where.levelOrder = {};
       if (minLevel) where.levelOrder.gte = minLevel;

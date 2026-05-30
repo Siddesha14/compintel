@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import {SalaryTable } from "@/components/SalaryTable";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { SalaryTable } from "@/components/SalaryTable";
 
 const ROLE_OPTIONS = [
   { value: "", label: "All Roles" },
@@ -14,16 +14,23 @@ const ROLE_OPTIONS = [
 ];
 
 export default function HomePage() {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [role, setRole] = useState("");
   const [company, setCompany] = useState("");
   const [city, setCity] = useState("");
+  const isFirstLoad = useRef(true);
 
   const fetchSalaries = useCallback(async () => {
-    setLoading(true);
+    if (isFirstLoad.current) {
+      setLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
     const params = new URLSearchParams();
     if (role) params.set("roleCategory", role);
     if (company) params.set("company", company);
@@ -31,11 +38,18 @@ export default function HomePage() {
     params.set("page", String(page));
     params.set("limit", "20");
 
-    const res = await fetch(`/api/salaries?${params.toString()}`);
-    const json = await res.json();
-    setData(json.data || []);
-    setTotal(json.meta?.total || json.total || 0);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/salaries?${params.toString()}`);
+      const json = await res.json();
+      setData(json.data || []);
+      setTotal(json.meta?.total ?? json.total ?? 0);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+      isFirstLoad.current = false;
+    }
   }, [role, company, city, page]);
 
   useEffect(() => {
@@ -62,7 +76,7 @@ export default function HomePage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <select
           value={role}
           onChange={(e) => { setRole(e.target.value); setPage(1); }}
@@ -89,6 +103,10 @@ export default function HomePage() {
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-48"
         />
 
+        {isRefreshing && (
+          <span className="text-xs text-gray-400 animate-pulse">Updating...</span>
+        )}
+
         {(role || company || city) && (
           <button
             onClick={() => { setRole(""); setCompany(""); setCity(""); setPage(1); }}
@@ -100,7 +118,9 @@ export default function HomePage() {
       </div>
 
       {/* Table */}
-      <SalaryTable data={data} loading={loading} />
+      <div className={`transition-opacity duration-150 ${isRefreshing ? "opacity-60" : "opacity-100"}`}>
+        <SalaryTable data={data} loading={loading} />
+      </div>
 
       {/* Pagination */}
       {totalPages > 1 && (
