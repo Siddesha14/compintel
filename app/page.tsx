@@ -34,7 +34,7 @@ export default function HomePage() {
     const res = await fetch(`/api/salaries?${params.toString()}`);
     const json = await res.json();
     setData(json.data || []);
-    setTotal(json.total || 0);
+    setTotal(json.meta?.total || json.total || 0);
     setLoading(false);
   }, [role, company, city, page]);
 
